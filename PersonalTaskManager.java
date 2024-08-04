@@ -1,24 +1,157 @@
+
 package taskmanager;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Scanner;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
+// User Class
+class User {
+    private String username;
+    private String password; // In a real application, passwords should be hashed.
+
+    public User(String username, String password) {
+        this.username = username;
+        this.password = password;
+    }
+
+    public String getUsername() { return username; }
+    public String getPassword() { return password; }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "username='" + username + '\'' +
+                '}';
+    }
+}
+
+// UserManager Class
+class UserManager {
+    private final Map<String, User> users;
+    private User loggedInUser;
+
+    public UserManager() {
+        users = new HashMap<>();
+        loggedInUser = null;
+    }
+
+    public boolean register(String username, String password) {
+        if (users.containsKey(username)) {
+            System.out.println("User already exists.");
+            return false;
+        }
+        users.put(username, new User(username, password));
+        System.out.println("User registered successfully.");
+        return true;
+    }
+
+    public boolean login(String username, String password) {
+        User user = users.get(username);
+        if (user != null && user.getPassword().equals(password)) {
+            loggedInUser = user;
+            System.out.println("Login successful.");
+            return true;
+        } else {
+            System.out.println("Invalid username or password.");
+            return false;
+        }
+    }
+
+    public void logout() {
+        loggedInUser = null;
+        System.out.println("Logged out successfully.");
+    }
+
+    public boolean isUserLoggedIn() {
+        return loggedInUser != null;
+    }
+
+    public User getLoggedInUser() {
+        return loggedInUser;
+    }
+}
+
+// CustomHashMap Class
+class CustomHashMap<K, V> {
+    private final Map<K, V> map;
+
+    public CustomHashMap() {
+        map = new HashMap<>();
+    }
+
+    public void put(K key, V value) {
+        map.put(key, value);
+    }
+
+    public V get(K key) {
+        return map.get(key);
+    }
+
+    public V remove(K key) {
+        return map.remove(key);
+    }
+
+    public boolean containsKey(K key) {
+        return map.containsKey(key);
+    }
+
+    public void printAllEntries() {
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            System.out.println("Key: " + entry.getKey() + ", Value: " + entry.getValue());
+        }
+    }
+
+    public boolean isEmpty() {
+        return map.isEmpty();
+    }
+
+    public int size() {
+        return map.size();
+    }
+
+    public Collection<V> getAllValues() {
+        return map.values();
+    }
+
+    public void exportToCSV(String filename) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
+            for (Map.Entry<K, V> entry : map.entrySet()) {
+                writer.write(entry.getKey() + "," + entry.getValue() + "\n");
+            }
+            System.out.println("Data exported to CSV successfully.");
+        } catch (IOException e) {
+            System.out.println("Error exporting to CSV: " + e.getMessage());
+        }
+    }
+
+    public void importFromCSV(String filename) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",", 2);
+                if (parts.length == 2) {
+                    K key = (K) parts[0];
+                    V value = (V) parts[1];
+                    map.put(key, value);
+                }
+            }
+            System.out.println("Data imported from CSV successfully.");
+        } catch (IOException e) {
+            System.out.println("Error importing from CSV: " + e.getMessage());
+        }
+    }
+}
+
+// Task Class
 class Task {
     private String id;
     private String name;
     private String deadline;
     private String status;
     private int priority;
+    private String assignedTo;
+    private String reminder;
 
     public Task(String id, String name, String deadline, String status, int priority) {
         this.id = id;
@@ -26,6 +159,8 @@ class Task {
         this.deadline = deadline;
         this.status = status;
         this.priority = priority;
+        this.assignedTo = null;
+        this.reminder = null;
     }
 
     public String getId() { return id; }
@@ -33,11 +168,15 @@ class Task {
     public String getDeadline() { return deadline; }
     public String getStatus() { return status; }
     public int getPriority() { return priority; }
+    public String getAssignedTo() { return assignedTo; }
+    public String getReminder() { return reminder; }
 
     public void setName(String name) { this.name = name; }
     public void setDeadline(String deadline) { this.deadline = deadline; }
     public void setStatus(String status) { this.status = status; }
     public void setPriority(int priority) { this.priority = priority; }
+    public void setAssignedTo(String username) { this.assignedTo = username; }
+    public void setReminder(String reminder) { this.reminder = reminder; }
 
     @Override
     public String toString() {
@@ -47,361 +186,361 @@ class Task {
                 ", deadline='" + deadline + '\'' +
                 ", status='" + status + '\'' +
                 ", priority=" + priority +
+                ", assignedTo='" + assignedTo + '\'' +
+                ", reminder='" + reminder + '\'' +
                 '}';
     }
 }
 
-public class PersonalTaskManager {
-    private HashMap<String, Task> tasks = new HashMap<>();
-    private HashMap<String, String> users = new HashMap<>();
-    private HashMap<String, LinkedList<Task>> userTasks = new HashMap<>();
+// TaskManager Class
+public class TaskManager {
+    private CustomHashMap<String, Task> taskMap;
+    private UserManager userManager;
 
-    public boolean registerUser(String username, String password) {
-        if (users.containsKey(username)) {
-            return false;
-        }
-        users.put(username, password);
-        return true;
-    }
-
-    public boolean loginUser(String username, String password) {
-        return users.containsKey(username) && users.get(username).equals(password);
+    public TaskManager() {
+        taskMap = new CustomHashMap<>();
+        userManager = new UserManager();
     }
 
     public void addTask(Task task) {
-        tasks.put(task.getId(), task);
+        taskMap.put(task.getId(), task);
     }
 
-    public boolean removeTask(String taskId) {
-        return tasks.remove(taskId) != null;
+    public void removeTask(String taskId) {
+        if (taskMap.remove(taskId) == null) {
+            System.out.println("Task not found.");
+        }
     }
 
-    public boolean editTask(String taskId, String newName, String newDeadline, String newStatus, int newPriority) {
-        Task task = tasks.get(taskId);
+    public void editTask(String taskId, String newName, String newDeadline, String newStatus, int newPriority) {
+        Task task = taskMap.get(taskId);
         if (task != null) {
             task.setName(newName);
             task.setDeadline(newDeadline);
             task.setStatus(newStatus);
             task.setPriority(newPriority);
-            return true;
+            System.out.println("Task updated successfully.");
+        } else {
+            System.out.println("Task not found.");
         }
-        return false;
     }
 
     public void viewAllTasks() {
-        tasks.values().forEach(System.out::println);
+        taskMap.printAllEntries();
     }
 
-    public Task searchTaskByName(String name) {
-        return tasks.values().stream()
-                .filter(task -> task.getName().equalsIgnoreCase(name))
-                .findFirst()
-                .orElse(null);
+    public void searchTaskByName(String name) {
+        boolean found = false;
+        for (Task task : taskMap.getAllValues()) {
+            if (task.getName().equalsIgnoreCase(name)) {
+                System.out.println(task);
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("Task not found.");
+        }
     }
 
-    public Task searchTaskByDate(String date) {
-        return tasks.values().stream()
-                .filter(task -> task.getDeadline().equals(date))
-                .findFirst()
-                .orElse(null);
+    public void searchTaskByDate(String date) {
+        boolean found = false;
+        for (Task task : taskMap.getAllValues()) {
+            if (task.getDeadline().equals(date)) {
+                System.out.println(task);
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("Task not found.");
+        }
     }
 
     public void sortTasksByPriority() {
-        tasks.values().stream()
-                .sorted(Comparator.comparingInt(Task::getPriority))
-                .forEach(System.out::println);
+        taskMap.getAllValues().stream()
+            .sorted((t1, t2) -> Integer.compare(t1.getPriority(), t2.getPriority()))
+            .forEach(System.out::println);
     }
 
     public void sortTasksByDeadline() {
-        tasks.values().stream()
-                .sorted(Comparator.comparing(Task::getDeadline))
-                .forEach(System.out::println);
+        taskMap.getAllValues().stream()
+            .sorted((t1, t2) -> t1.getDeadline().compareTo(t2.getDeadline()))
+            .forEach(System.out::println);
     }
 
-    public boolean markTaskAsCompleted(String taskId) {
-        Task task = tasks.get(taskId);
+    public void markTaskAsCompleted(String taskId) {
+        Task task = taskMap.get(taskId);
         if (task != null) {
             task.setStatus("Completed");
-            return true;
+            System.out.println("Task marked as completed.");
+        } else {
+            System.out.println("Task not found.");
         }
-        return false;
     }
 
     public void filterTasksByStatus(String status) {
-        tasks.values().stream()
-                .filter(task -> task.getStatus().equalsIgnoreCase(status))
-                .forEach(System.out::println);
+        boolean found = false;
+        for (Task task : taskMap.getAllValues()) {
+            if (task.getStatus().equalsIgnoreCase(status)) {
+                System.out.println(task);
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("No tasks with the given status.");
+        }
     }
 
-    public void assignTaskToUser(String username, Task task) {
-        userTasks.computeIfAbsent(username, k -> new LinkedList<>()).add(task);
+    public void assignTaskToUser(String taskId, String username) {
+        Task task = taskMap.get(taskId);
+        if (task != null) {
+            task.setAssignedTo(username);
+            System.out.println("Task assigned to " + username + " successfully.");
+        } else {
+            System.out.println("Task not found.");
+        }
     }
 
     public void viewTasksAssignedToUser(String username) {
-        LinkedList<Task> assignedTasks = userTasks.get(username);
-        if (assignedTasks != null) {
-            assignedTasks.forEach(System.out::println);
-        } else {
-            System.out.println("No tasks assigned to this user.");
+        boolean found = false;
+        for (Task task : taskMap.getAllValues()) {
+            if (username.equals(task.getAssignedTo())) {
+                System.out.println(task);
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("No tasks assigned to " + username);
         }
     }
 
-    public void setTaskReminder(Task task) {
-        Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                System.out.println("Reminder: " + task);
-            }
-        }, new Date(task.getDeadline()));
+    public void setTaskReminder(String taskId, String reminder) {
+        Task task = taskMap.get(taskId);
+        if (task != null) {
+            task.setReminder(reminder);
+            System.out.println("Reminder set for task.");
+        } else {
+            System.out.println("Task not found.");
+        }
     }
 
     public void notifyUpcomingTasks() {
-        Date now = new Date();
-        tasks.values().stream()
-                .filter(task -> {
-                    try {
-                        return new SimpleDateFormat("yyyy-MM-dd").parse(task.getDeadline()).after(now);
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
-                .forEach(task -> System.out.println("Upcoming Task: " + task));
-    }
-
-    public void exportTasksToCSV(String filePath) throws IOException {
-        try (FileWriter csvWriter = new FileWriter(filePath)) {
-            for (Task task : tasks.values()) {
-                csvWriter.append(task.getId()).append(",")
-                        .append(task.getName()).append(",")
-                        .append(task.getDeadline()).append(",")
-                        .append(task.getStatus()).append(",")
-                        .append(String.valueOf(task.getPriority())).append("\n");
+        System.out.println("Upcoming tasks:");
+        for (Task task : taskMap.getAllValues()) {
+            if (task.getReminder() != null) {
+                System.out.println(task);
             }
         }
     }
 
-    public void importTasksFromCSV(String filePath) throws IOException {
-        try (BufferedReader csvReader = new BufferedReader(new FileReader(filePath))) {
-            String row;
-            while ((row = csvReader.readLine()) != null) {
-                String[] data = row.split(",");
-                if (data.length == 5) {
-                    Task task = new Task(data[0], data[1], data[2], data[3], Integer.parseInt(data[4]));
-                    tasks.put(task.getId(), task);
-                }
-            }
-        }
+    public void exportTasksToCSV(String filename) {
+        taskMap.exportToCSV(filename);
+    }
+
+    public void importTasksFromCSV(String filename) {
+        taskMap.importFromCSV(filename);
     }
 
     public void taskAnalytics() {
-        HashMap<String, Integer> analytics = new HashMap<>();
-        for (Task task : tasks.values()) {
-            String month = task.getDeadline().substring(0, 7);
-            analytics.put(month, analytics.getOrDefault(month, 0) + 1);
-        }
-        analytics.forEach((month, count) -> System.out.println("Month: " + month + ", Tasks: " + count));
+        Map<String, Long> statusCount = taskMap.getAllValues().stream()
+            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+
+        System.out.println("Task Analytics:");
+        statusCount.forEach((status, count) -> System.out.println(status + ": " + count));
     }
 
     public void generateTaskReport() {
-        tasks.values().forEach(task -> System.out.println("Task Report: " + task));
+        System.out.println("Generating task report...");
+        // Example of generating a report based on hash map entries.
+        taskMap.printAllEntries();
     }
 
     public static void main(String[] args) {
-        PersonalTaskManager manager = new PersonalTaskManager();
+        TaskManager manager = new TaskManager();
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Personal Task Manager");
-        boolean loggedIn = false;
-        String username = null;
-
-        while (!loggedIn) {
-            System.out.println("1. Register");
-            System.out.println("2. Login");
-            System.out.print("Choose an option: ");
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // Consume newline
-
-            System.out.print("Enter username: ");
-            username = scanner.nextLine();
-            System.out.print("Enter password: ");
-            String password = scanner.nextLine();
-
-            if (choice == 1) {
-                if (manager.registerUser(username, password)) {
-                    System.out.println("Registration successful!");
-                } else {
-                    System.out.println("Username already exists.");
-                }
-            } else if (choice == 2) {
-                if (manager.loginUser(username, password)) {
-                    System.out.println("Login successful!");
-                    loggedIn = true;
-                } else {
-                    System.out.println("Invalid username or password.");
-                }
-            } else {
-                System.out.println("Invalid option.");
-            }
-        }
-
         boolean exit = false;
+        boolean loggedIn = false;
 
         while (!exit) {
-            System.out.println("\nTask Manager Menu");
-            System.out.println("1. Add Task");
-            System.out.println("2. View All Tasks");
-            System.out.println("3. Edit Task");
-            System.out.println("4. Remove Task");
-            System.out.println("5. Search Task by Name");
-            System.out.println("6. Search Task by Date");
-            System.out.println("7. Sort Tasks by Priority");
-            System.out.println("8. Sort Tasks by Deadline");
-            System.out.println("9. Mark Task as Completed");
-            System.out.println("10. Filter Tasks by Status");
-            System.out.println("11. View Tasks Assigned to User");
-            System.out.println("12. Notify Upcoming Tasks");
-            System.out.println("13. Task Analytics");
-            System.out.println("14. Generate Task Report");
-            System.out.println("15. Export Tasks to CSV");//(for storing task data temporarily)
-            System.out.println("16. Import Tasks from CSV");//(for reading task data temporarily)
-            System.out.println("17. Exit");
-            System.out.print("Choose an option: ");
-            int menuChoice = scanner.nextInt();
-            scanner.nextLine(); // Consume newline
+            if (!loggedIn) {
+                System.out.println("\nUser Management Menu");
+                System.out.println("1. Register");
+                System.out.println("2. Login");
+                System.out.println("3. Exit");
+                System.out.print("Choose an option: ");
+                int userChoice = scanner.nextInt();
+                scanner.nextLine(); // Consume newline
 
-            switch (menuChoice) {
-                case 1:
-                    System.out.print("Enter task ID: ");
-                    String id = scanner.nextLine();
-                    System.out.print("Enter task name: ");
-                    String name = scanner.nextLine();
-                    System.out.print("Enter task deadline (yyyy-MM-dd): ");
-                    String deadline = scanner.nextLine();
-                    System.out.print("Enter task status: ");
-                    String status = scanner.nextLine();
-                    System.out.print("Enter task priority: ");
-                    int priority = scanner.nextInt();
-                    scanner.nextLine(); // Consume newline
+                switch (userChoice) {
+                    case 1:
+                        System.out.print("Enter username: ");
+                        String regUsername = scanner.nextLine();
+                        System.out.print("Enter password: ");
+                        String regPassword = scanner.nextLine();
+                        manager.userManager.register(regUsername, regPassword);
+                        break;
+                    case 2:
+                        System.out.print("Enter username: ");
+                        String loginUsername = scanner.nextLine();
+                        System.out.print("Enter password: ");
+                        String loginPassword = scanner.nextLine();
+                        loggedIn = manager.userManager.login(loginUsername, loginPassword);
+                        break;
+                    case 3:
+                        exit = true;
+                        System.out.println("Exiting...");
+                        break;
+                    default:
+                        System.out.println("Invalid option.");
+                        break;
+                }
+            } else {
+                System.out.println("\nTask Manager Menu");
+                System.out.println("1. Add Task");
+                System.out.println("2. View All Tasks");
+                System.out.println("3. Edit Task");
+                System.out.println("4. Remove Task");
+                System.out.println("5. Search Task by Name");
+                System.out.println("6. Search Task by Date");
+                System.out.println("7. Sort Tasks by Priority");
+                System.out.println("8. Sort Tasks by Deadline");
+                System.out.println("9. Mark Task as Completed");
+                System.out.println("10. Filter Tasks by Status");
+                System.out.println("11. Assign Task to User");
+                System.out.println("12. View Tasks Assigned to User");
+                System.out.println("13. Set Task Reminder");
+                System.out.println("14. Notify Upcoming Tasks");
+                System.out.println("15. Export Tasks to CSV");
+                System.out.println("16. Import Tasks from CSV");
+                System.out.println("17. Task Analytics");
+                System.out.println("18. Generate Task Report");
+                System.out.println("19. Logout");
+                System.out.println("20. Exit");
+                System.out.print("Choose an option: ");
+                int menuChoice = scanner.nextInt();
+                scanner.nextLine(); // Consume newline
 
-                    Task task = new Task(id, name, deadline, status, priority);
-                    manager.addTask(task);
-                    manager.assignTaskToUser(username, task);
-                    System.out.println("Task added and assigned successfully.");
-                    break;
-                case 2:
-                    manager.viewAllTasks();
-                    break;
-                case 3:
-                    System.out.print("Enter task ID to edit: ");
-                    String editId = scanner.nextLine();
-                    System.out.print("Enter new task name: ");
-                    String newName = scanner.nextLine();
-                    System.out.print("Enter new task deadline (yyyy-MM-dd): ");
-                    String newDeadline = scanner.nextLine();
-                    System.out.print("Enter new task status: ");
-                    String newStatus = scanner.nextLine();
-                    System.out.print("Enter new task priority: ");
-                    int newPriority = scanner.nextInt();
-                    scanner.nextLine(); // Consume newline
+                switch (menuChoice) {
+                    case 1:
+                        System.out.print("Enter task ID: ");
+                        String id = scanner.nextLine();
+                        System.out.print("Enter task name: ");
+                        String name = scanner.nextLine();
+                        System.out.print("Enter task deadline (yyyy-MM-dd): ");
+                        String deadline = scanner.nextLine();
+                        System.out.print("Enter task status: ");
+                        String status = scanner.nextLine();
+                        System.out.print("Enter task priority: ");
+                        int priority = scanner.nextInt();
+                        scanner.nextLine(); // Consume newline
 
-                    if (manager.editTask(editId, newName, newDeadline, newStatus, newPriority)) {
-                        System.out.println("Task updated successfully.");
-                    } else {
-                        System.out.println("Task not found.");
-                    }
-                    break;
-                case 4:
-                    System.out.print("Enter task ID to remove: ");
-                    String removeId = scanner.nextLine();
-                    if (manager.removeTask(removeId)) {
-                        System.out.println("Task removed successfully.");
-                    } else {
-                        System.out.println("Task not found.");
-                    }
-                    break;
-                case 5:
-                    System.out.print("Enter task name to search: ");
-                    String searchName = scanner.nextLine();
-                    Task taskByName = manager.searchTaskByName(searchName);
-                    if (taskByName != null) {
-                        System.out.println("Task found: " + taskByName);
-                    } else {
-                        System.out.println("Task not found.");
-                    }
-                    break;
-                case 6:
-                    System.out.print("Enter task deadline to search (yyyy-MM-dd): ");
-                    String searchDate = scanner.nextLine();
-                    Task taskByDate = manager.searchTaskByDate(searchDate);
-                    if (taskByDate != null) {
-                        System.out.println("Task found: " + taskByDate);
-                    } else {
-                        System.out.println("Task not found.");
-                    }
-                    break;
-                case 7:
-                    manager.sortTasksByPriority();
-                    break;
-                case 8:
-                    manager.sortTasksByDeadline();
-                    break;
-                case 9:
-                    System.out.print("Enter task ID to mark as completed: ");
-                    String completeId = scanner.nextLine();
-                    if (manager.markTaskAsCompleted(completeId)) {
-                        System.out.println("Task marked as completed.");
-                    } else {
-                        System.out.println("Task not found.");
-                    }
-                    break;
-                case 10:
-                    System.out.print("Enter status to filter tasks by: ");
-                    String filterStatus = scanner.nextLine();
-                    manager.filterTasksByStatus(filterStatus);
-                    break;
-                case 11:
-                    manager.viewTasksAssignedToUser(username);
-                    break;
-                case 12:
-                    manager.notifyUpcomingTasks();
-                    break;
-                case 13:
-                    manager.taskAnalytics();
-                    break;
-                case 14:
-                    manager.generateTaskReport();
-                    break;
-                case 15:
-                    System.out.print("Enter file path to export tasks to CSV: ");
-                    String exportPath = scanner.nextLine();
-                    try {
-                        manager.exportTasksToCSV(exportPath);
-                        System.out.println("Tasks exported successfully.");
-                    } catch (IOException e) {
-                        System.out.println("Error exporting tasks: " + e.getMessage());
-                    }
-                    break;
-                case 16:
-                    System.out.print("Enter file path to import tasks from CSV: ");
-                    String importPath = scanner.nextLine();
-                    try {
-                        manager.importTasksFromCSV(importPath);
-                        System.out.println("Tasks imported successfully.");
-                    } catch (IOException e) {
-                        System.out.println("Error importing tasks: " + e.getMessage());
-                    }
-                    break;
-                case 17:
-                    exit = true;
-                    System.out.println("Exiting...");
-                    break;
-                default:
-                    System.out.println("Invalid option.");
-                    break;
+                        Task task = new Task(id, name, deadline, status, priority);
+                        manager.addTask(task);
+                        System.out.println("Task added successfully.");
+                        break;
+                    case 2:
+                        manager.viewAllTasks();
+                        break;
+                    case 3:
+                        System.out.print("Enter task ID to edit: ");
+                        String editId = scanner.nextLine();
+                        System.out.print("Enter new task name: ");
+                        String newName = scanner.nextLine();
+                        System.out.print("Enter new task deadline (yyyy-MM-dd): ");
+                        String newDeadline = scanner.nextLine();
+                        System.out.print("Enter new task status: ");
+                        String newStatus = scanner.nextLine();
+                        System.out.print("Enter new task priority: ");
+                        int newPriority = scanner.nextInt();
+                        scanner.nextLine(); // Consume newline
+
+                        manager.editTask(editId, newName, newDeadline, newStatus, newPriority);
+                        break;
+                    case 4:
+                        System.out.print("Enter task ID to remove: ");
+                        String removeId = scanner.nextLine();
+                        manager.removeTask(removeId);
+                        break;
+                    case 5:
+                        System.out.print("Enter task name to search: ");
+                        String searchName = scanner.nextLine();
+                        manager.searchTaskByName(searchName);
+                        break;
+                    case 6:
+                        System.out.print("Enter task deadline to search (yyyy-MM-dd): ");
+                        String searchDate = scanner.nextLine();
+                        manager.searchTaskByDate(searchDate);
+                        break;
+                    case 7:
+                        manager.sortTasksByPriority();
+                        break;
+                    case 8:
+                        manager.sortTasksByDeadline();
+                        break;
+                    case 9:
+                        System.out.print("Enter task ID to mark as completed: ");
+                        String completeId = scanner.nextLine();
+                        manager.markTaskAsCompleted(completeId);
+                        break;
+                    case 10:
+                        System.out.print("Enter status to filter tasks by: ");
+                        String filterStatus = scanner.nextLine();
+                        manager.filterTasksByStatus(filterStatus);
+                        break;
+                    case 11:
+                        System.out.print("Enter task ID to assign: ");
+                        String assignId = scanner.nextLine();
+                        System.out.print("Enter username to assign task to: ");
+                        String username = scanner.nextLine();
+                        manager.assignTaskToUser(assignId, username);
+                        break;
+                    case 12:
+                        System.out.print("Enter username to view tasks: ");
+                        String user = scanner.nextLine();
+                        manager.viewTasksAssignedToUser(user);
+                        break;
+                    case 13:
+                        System.out.print("Enter task ID to set reminder: ");
+                        String reminderId = scanner.nextLine();
+                        System.out.print("Enter reminder details: ");
+                        String reminderDetails = scanner.nextLine();
+                        manager.setTaskReminder(reminderId, reminderDetails);
+                        break;
+                    case 14:
+                        manager.notifyUpcomingTasks();
+                        break;
+                    case 15:
+                        System.out.print("Enter filename to export tasks: ");
+                        String exportFilename = scanner.nextLine();
+                        manager.exportTasksToCSV(exportFilename);
+                        break;
+                    case 16:
+                        System.out.print("Enter filename to import tasks: ");
+                        String importFilename = scanner.nextLine();
+                        manager.importTasksFromCSV(importFilename);
+                        break;
+                    case 17:
+                        manager.taskAnalytics();
+                        break;
+                    case 18:
+                        manager.generateTaskReport();
+                        break;
+                    case 19:
+                        manager.userManager.logout();
+                        loggedIn = false;
+                        break;
+                    case 20:
+                        exit = true;
+                        System.out.println("Exiting...");
+                        break;
+                    default:
+                        System.out.println("Invalid option.");
+                        break;
+                }
             }
         }
 
         scanner.close();
     }
 }
+
