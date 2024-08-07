@@ -7,8 +7,8 @@ import java.util.stream.Collectors;
 
 // User Class
 class User {
-    private String username;
-    private String password; // In a real application, passwords should be hashed.
+    private final String username;
+    private final String password; // In a real application, passwords should be hashed.
 
     public User(String username, String password) {
         this.username = username;
@@ -36,14 +36,13 @@ class UserManager {
         loggedInUser = null;
     }
 
-    public boolean register(String username, String password) {
+    public void register(String username, String password) {
         if (users.containsKey(username)) {
             System.out.println("User already exists.");
-            return false;
+            return;
         }
         users.put(username, new User(username, password));
         System.out.println("User registered successfully.");
-        return true;
     }
 
     public boolean login(String username, String password) {
