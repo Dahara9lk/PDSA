@@ -36,7 +36,8 @@ class UserManager {
         loggedInUser = null;
     }
 
-    public void register(String username, String password) {
+    //Adding 'final' for a definite outcome. -B
+    public void register(final String username, final String password) {
         if (users.containsKey(username)) {
             System.out.println("User already exists.");
             return;
@@ -45,10 +46,15 @@ class UserManager {
         System.out.println("User registered successfully.");
     }
 
+    //Refined use of 'optional' case which replaces the need of checking for null values or returning them. -B
+    public Optional<User> getUser(String username) {
+        return Optional.ofNullable(users.get(username));
+    }
+
     public boolean login(String username, String password) {
-        User user = users.get(username);
-        if (user != null && user.getPassword().equals(password)) {
-            loggedInUser = user;
+        Optional<User> userOpt = getUser(username);
+        if (userOpt.isPresent() && userOpt.get().getPassword().equals(password)) {
+            loggedInUser = userOpt.get();
             System.out.println("Login successful.");
             return true;
         } else {
@@ -177,17 +183,11 @@ class Task {
     public void setAssignedTo(String username) { this.assignedTo = username; }
     public void setReminder(String reminder) { this.reminder = reminder; }
 
+    //Best practices - Use of String.format instead of the '+' operator. -B
     @Override
     public String toString() {
-        return "Task{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", deadline='" + deadline + '\'' +
-                ", status='" + status + '\'' +
-                ", priority=" + priority +
-                ", assignedTo='" + assignedTo + '\'' +
-                ", reminder='" + reminder + '\'' +
-                '}';
+        return String.format("Task{id='%s', name='%s', deadline='%s', status='%s', priority=%d, assignedTo='%s', reminder='%s'}",
+                id, name, deadline, status, priority, assignedTo, reminder);
     }
 }
 
@@ -205,13 +205,17 @@ public class TaskManager {
         taskMap.put(task.getId(), task);
     }
 
-    public void removeTask(String taskId) {
+    //Standardisation of error messages, use of 'final', and rephrasing error message semantics -B
+    public void removeTask(final String taskId) {
         if (taskMap.remove(taskId) == null) {
             System.out.println("Task not found.");
+        } else {
+            System.out.println("Task removed successfully.");
         }
     }
 
-    public void editTask(String taskId, String newName, String newDeadline, String newStatus, int newPriority) {
+    //adding 'final' for a definite outcome -B
+    public void editTask(final String taskId, final String newName, final String newDeadline, final String newStatus, final int newPriority) {
         Task task = taskMap.get(taskId);
         if (task != null) {
             task.setName(newName);
@@ -228,16 +232,15 @@ public class TaskManager {
         taskMap.printAllEntries();
     }
 
-    public void searchTaskByName(String name) {
-        boolean found = false;
-        for (Task task : taskMap.getAllValues()) {
-            if (task.getName().equalsIgnoreCase(name)) {
-                System.out.println(task);
-                found = true;
-            }
-        }
-        if (!found) {
+    //Best practices - Use of 'final' and 'streams' -B
+    public void searchTaskByName(final String name) {
+        List<Task> tasks = taskMap.getAllValues().stream()
+                .filter(task -> task.getName().equalsIgnoreCase(name))
+                .collect(Collectors.toList());
+        if (tasks.isEmpty()) {
             System.out.println("Task not found.");
+        } else {
+            tasks.forEach(System.out::println);
         }
     }
 
@@ -266,26 +269,29 @@ public class TaskManager {
             .forEach(System.out::println);
     }
 
-    public void markTaskAsCompleted(String taskId) {
-        Task task = taskMap.get(taskId);
+    //Best practices - Use of constants for repeatedly used strings -B
+    public static final String COMPLETED = "Completed";
+    public static final String TASK_NOT_FOUND = "Task not found.";
+
+    public void markTaskAsCompleted(final String taskId) {
+        final Task task = taskMap.get(taskId);
         if (task != null) {
-            task.setStatus("Completed");
+            task.setStatus(COMPLETED);
             System.out.println("Task marked as completed.");
         } else {
-            System.out.println("Task not found.");
+            System.out.println(TASK_NOT_FOUND);
         }
     }
 
-    public void filterTasksByStatus(String status) {
-        boolean found = false;
-        for (Task task : taskMap.getAllValues()) {
-            if (task.getStatus().equalsIgnoreCase(status)) {
-                System.out.println(task);
-                found = true;
-            }
-        }
-        if (!found) {
+    //Best practices - Use of 'final' and 'streams' -B
+    public void filterTasksByStatus(final String status) {
+        List<Task> tasks = taskMap.getAllValues().stream()
+                .filter(task -> task.getStatus().equalsIgnoreCase(status))
+                .collect(Collectors.toList());
+        if (tasks.isEmpty()) {
             System.out.println("No tasks with the given status.");
+        } else {
+            tasks.forEach(System.out::println);
         }
     }
 
