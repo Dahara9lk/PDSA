@@ -344,16 +344,35 @@ public class TaskManager {
     }
 
     public void taskAnalytics() {
-        Map<String, Long> statusCount = taskMap.getAllValues().stream()
-            .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
-
-        System.out.println("Task Analytics:");
-        statusCount.forEach((status, count) -> System.out.println(status + ": " + count));
+            // Count the number of tasks by status
+    Map<String, Long> statusCount = taskMap.getAllValues().stream()
+        .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+    
+    // Count the number of tasks by priority
+    Map<Integer, Long> priorityCount = taskMap.getAllValues().stream()
+        .collect(Collectors.groupingBy(Task::getPriority, Collectors.counting()));
+    
+    // Count the number of tasks by assigned user
+    Map<String, Long> userCount = taskMap.getAllValues().stream()
+        .filter(task -> task.getAssignedTo() != null)
+        .collect(Collectors.groupingBy(Task::getAssignedTo, Collectors.counting()));
+    
+    // Print the results
+    System.out.println("Task Analytics:");
+    
+    System.out.println("Tasks by Status:");
+    statusCount.forEach((status, count) -> System.out.println(status + ": " + count));
+    
+    System.out.println("\nTasks by Priority:");
+    priorityCount.forEach((priority, count) -> System.out.println("Priority " + priority + ": " + count));
+    
+    System.out.println("\nTasks by Assigned User:");
+    userCount.forEach((user, count) -> System.out.println(user + ": " + count));
     }
 
     public void generateTaskReport() {
         System.out.println("Generating task report...");
-        // Example of generating a report based on hash map entries.
+        // Generating a report based on hash map entries.
         taskMap.printAllEntries();
     }
 
