@@ -420,7 +420,6 @@ public class TaskManager {
                 System.out.println("17. Task Analytics");
                 System.out.println("18. Generate Task Report");
                 System.out.println("19. Logout");
-                System.out.println("20. Exit");
                 System.out.print("Choose an option: ");
                 int menuChoice = scanner.nextInt();
                 scanner.nextLine(); // Consume newline
@@ -533,10 +532,6 @@ public class TaskManager {
                     case 19:
                         manager.userManager.logout();
                         loggedIn = false;
-                        break;
-                    case 20:
-                        exit = true;
-                        System.out.println("Exiting...");
                         break;
                     default:
                         System.out.println("Invalid option.");
